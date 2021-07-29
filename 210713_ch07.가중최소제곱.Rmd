@@ -1,0 +1,123 @@
+---
+title: "Chapter07. 가중최소제곱"
+author: "Jeong-Eun Lee"
+date: '2021 7 13 '
+output: html_document
+---
+### 7.1 소개
++ 이분산성 : 오차들이 같은 분산을 갖지 못하는 것
++ 자기상관 : 오차들이 독립이 아닌 것
++ 가중최소제곱법(WLS) : 변환된 변수들에 대해 최소제곱추정법(OLS)를 수행하는 것
+  + 이 장에서 다루는 WLS는 이분산성을 갖는 오차를 다루는 방법과 그 추정 방법에 관한 것이다.
+  + WLS는 함량-반응곡선과 로지스틱 모형에 대한 적합에서 OLS보다 우수함
++ WLS추정은 다음의 식을 최소화함으로써 얻어짐 $$\sum_{i = 1}^{n} w_i(y_i - \beta_0 - \beta_1x_{i1} - ... - \beta_px_{ip})^2$$
+  + $w_i$ : 분산에 반비례하는 가중치 -> $w_i = 1/\sigma_i^2$
++ WLS 방법의 특징
+  + 작은 가중치를 가지는 관찰값은 회귀계수 $\beta_0, \beta_1, ..., \beta_p$의 값을 결정하는 데 적은 영향을 미침
+  + 극단적인 경우 $w_i = 0$이면 $i$번째 관측개체는 추정과정에서 제외되는 효과를 가짐
++ 가중치 $w_i$가 알려져있지 않다면
+  + 단계 1) OLS에 의한 결과로부터 가중치를 추정
+  + 단계 2) 단계 1에서 구한 가중치를 기초로 WLS를 적용하여 추정치를 구함함
+
+### 7.2 이분산성 모형 & 7.3 이단계 추정
++ 이분산성의 문제가 제기될 수 있는 상황
+  1) 오차항 $\epsilon_i$의 분산이 설명변수($x_i$)에 의존하는 경우 -> WLS법 사용하여 해결
+      + $Var(\epsilon_i) = k^2x_{i2}^2$일 때, $\sum_{i = 1}^{n} 1/x_{i2}^2 (y_i - \beta_0 - \beta_1x_{i1}-...-\beta_px_{ip})^2$를 최소화하여 회귀계수의 추정치를 구함
+  2) 잘 정의된 그룹이나 군집으로부터 얻어진 개별 추출단위들의 평균을 관측치로 다루는 대규모 표본조사의 경우 -> WLS법 사용하여 해결
+      + $\sigma_i^2 = \sigma^2/n_i$일 때, $S = \sum_{i = 1}^{n} n_i(y_i - \beta_0 - \sum_{j = 1}^{6} \beta_jx_{ij})^2$를 최소화하여 회귀계수의 추정치를 구함
+  3) 분산이 동일하지 않다는 사전의 예상이 가능하나, 이분산성의 구체적인 구조는 표본을 얻은 후에 경험적으로 결정되는 경우 -> 이단계(two stage) 추정 절차
+  
+### 7.4 교육비 지출 데이터
++ 데이터는 1975년 부분만을 사용함
++ 가정 : 각 지리별 영역별로 전체적인 회귀관계의 구조는 같으나, 잔차분산과 회귀계수는 서로 다를 가능성이 있음 -> 이분산성의 문제 고려
++ 모형(식 7.8) : $Y = \beta_0 + \beta_1X_1 + \beta_2X_2 + \beta_3X_3 + \epsilon$
++ 그룹화 : (1) 북동  (2) 북부중앙  (3) 남부  (4) 서부
+  + 50개 주는 지리적 동질성이 존재한다는 가정에 기반하여 지역별 차이에 관한 정보를 가중최소제곱법에 확장함
+  + 4개의 지역별로 서로 다른 오차분산이 존재한다고 가정 : $(c_1\sigma)^2, (c_2\sigma)^2, (c_3\sigma)^2, (c_4\sigma)^2$
+      + (WLS) $S_w = S_1 + S_2 + S_3 + S_4$를 최소화하여 모회귀계수의 최소제곱추정량을 구함
+      + 여기서 $S_j = \sum_{i = 1}^{n_j} 1/c_j^2 (y_i - \beta_0 - \beta_1x_{i1} - \beta_2x_{i2} - \beta_3x_{i3})^2,   j = 1, 2, 3, 4$ ... (식 7.9)
+          + $c_j^2$는 가중치 : 오차가 큰 관측값이 회귀계수의 결정에 작은 영향을 끼치게 하는 효과를 가짐 -> 다중선형회귀와의 차이점
+          + $c_j^2$는 미지의 값 -> 데이터로부터 추정 -> 이단계 추정법
+
++ 이단계 추정법
+  + 단계 1) 원래 데이터에 (식 7.8) 모형을 사용한 회귀분석을 수행 + 지역별로 얻은 경험적 잔차로부터 지역별 오차분산의 추정값을 계산
+      + ex) 북동지역(1)의 경우, $\hat{\sigma_1} = \sum e_i^2/(9-1)$
+  + 단계 2) (식 7.9)의 $c_j^2$의 추정치는 $\hat{c_j^2} = \hat{\sigma_j^2} / n^{-1} \sum_{i = 1}^{n} e_i^2$로 대체됨
+
+```{r}
+edu = read.table("C:\\Users\\X-Note\\Desktop\\edu.txt", header = T)
+head(edu)
+lm_edu = lm(Y ~ X1 + X2 + X3, data = edu)
+summary(lm_edu)
+plot(edu$Y, rstandard(lm_edu), xlab = "예측값", ylab = "잔차", pch = 16) 
+```
+
++ 표준화잔차 대 적합값의 플롯 : 적합값에 대한 잔차의 변이와 크기를 포함하는 일반적인 형태 파악이 목적
+  + 산점도가 깔때기모양인 것을 보아 이분산성이 존재함
+  + 49번 개체는 영향력이 큰 특이값으로 제거할 필요가 있음
+
+```{r}
+plot(edu$Region, rstandard(lm_edu), xlab = "지역", ylab = "잔차", pch = 16)
+```
+
++ 표준화잔차 대 지역의 플롯 - 지역별로 잔차의 흐트러진 정도가 서로 다름 -> 분산이 지역별로 다름
+
+```{r}
+plot(edu$X1, rstandard(lm_edu), xlab = "X1", ylab = "잔차", pch = 16)
+plot(edu$X2, rstandard(lm_edu), xlab = "X2", ylab = "잔차", pch = 16)
+plot(edu$X3, rstandard(lm_edu), xlab = "X3", ylab = "잔차", pch = 16)
+```
+
++ 표준화잔차와 각 예측변수에 대한 산점도 - 변수 $X_1$에 대해 잔차의 분산이 증가하고 있음
+
+```{r}
+lm_edu2 = lm(Y[-49] ~ X1[-49] + X2[-49] + X3[-49], data = edu)
+summary(lm_edu2)
+plot(lm_edu2$fitted.values, rstandard(lm_edu2), xlab = "예측값", ylab = "잔차", pch = 16)
+plot(edu$Region[-49], rstandard(lm_edu2), xlab = "지역", ylab = "잔차", pch = 16)
+```
+
++ 49번 개체를 제거한 후의 교육비 지출 데이터에 대한 회귀분석 결과와 표준화잔차 대 적합값의 플롯, 표준화잔차 대 지역의 플롯 이다. 이 그림들을 보면 여전히 이분산성이 나타나고 있음을 알 수 있다.
+
+### WLS 계산
++ 이 모형에 대해 WLS 추정을 하기 위해 $c_j$를 먼저 추정해야 한다.
+$$\hat{c}_j^{2} = \frac{\hat{\sigma}_j^2}{\frac{1}{n}\sum_{i=1}^{n}e_i^2}$$
+이때 $\hat{\sigma}_1^2 = \sum e_i^2/(9-1)$ 등으로 구한다.
+
+```{r}
+sigma_hat_1 <- sum(lm_edu2$residuals[which(edu$Region==1)]^2)/(sum(edu$Region==1)-1)
+sigma_hat_2 <- sum(lm_edu2$residuals[which(edu$Region==2)]^2)/(sum(edu$Region==2)-1)
+sigma_hat_3 <- sum(lm_edu2$residuals[which(edu$Region==3)]^2)/(sum(edu$Region==3)-1)
+sigma_hat_4 <- sum(lm_edu2$residuals[-which(edu$Region%in%c(1,2,3))]^2)/(sum(edu$Region==4)-2) #알래스카 제거 때문
+sigma_hat_tot <- sum(lm_edu2$residuals^2)/(length(lm_edu2$residuals))
+
+c_hat_1 <- sqrt(sigma_hat_1/sigma_hat_tot)
+c_hat_2 <- sqrt(sigma_hat_2/sigma_hat_tot)
+c_hat_3 <- sqrt(sigma_hat_3/sigma_hat_tot)
+c_hat_4 <- sqrt(sigma_hat_4/sigma_hat_tot)
+
+edu3 <- edu[-49,]
+lm_edu3 = lm(Y ~ X1 + X2 + X3, data = edu3, weights = c(rep(1/c_hat_1^2, 9), rep(1/c_hat_2^2, 12), rep(1/c_hat_3^2, 16), rep(1/c_hat_4^2, 12)))
+summary(lm_edu3)
+```
+
+```{r}
+plot(lm_edu3$fitted.values, rstandard(lm_edu3), xlab = "예측값", ylab = "잔차", pch = 16)
+```
+
++ [그림 7.10] : WLS 해에 대한 표준화잔차 대 적합값의 플롯 - 특별한 패턴 x
+```{r}
+plot(edu3$Region, rstandard(lm_edu3), xlab = "지역", ylab = "잔차", pch = 16)
+```
+
++ [그림 7.11] : WLS 해에 대한 표준화잔차 대 지역의 플롯 - 많이 평준화 됨
+  + 위의 두 그림을 통해 이 데이터에서는 OLS < WLS 선호
++ WLS는 OLS보다 데이터를 잘 적합시키지 않는데(-> WLS의 단점)도 WLS를 선호하는 이유는 잔차가 취하는 형태에 중요한 의미를 부여하기 때문
+
+
+### 7.5 함량 - 반응 연관곡선의 적합
++ 로지스틱 반응함수 : $\pi_j = e^{\beta_0 + \beta_1x_j} / 1 + e^{\beta_0 + \beta_1x_j}$ ; 0과 1 사이의 값을 갖는 단조증가함수
++ 로지스틱 모형
+  + 의학, 약학, 리스크분석, 학습이론, 소비자행동 이론 등에 널리 사용
+  + 이항반응에 관한 데이터에서 반응비율에 대한 분석이 매우 타당하고 적합하기 쉬운 방법
++ 프로빗 모형 : 로지스틱 반응함수 대신 누적정규분포함수를 반응함수로 하는 것에 기초한 분석
