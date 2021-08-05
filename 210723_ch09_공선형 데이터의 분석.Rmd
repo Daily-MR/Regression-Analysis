@@ -1,0 +1,227 @@
+---
+title: "Chapter09. 공선형 데이터의 분석"
+author: "Jeong-Eun Lee"
+date: '2021 7 23 '
+output: html_document
+---
+### 9.1 소개
++ 직교 : 예측변수들 간에 선형적인 연관관계가 전혀 없는 경우
+  + 직교성의 결여는 예측변수들이 너무 강하게 연관되어 있으면 회귀분석의 결과가 애매모호해질 우려가 있음
++ 공선성(or 다중공선성) : 예측변수들 간의 강한 비직교적 상태, 데이터의 결함에 의해 나타나는 결과
+
+### 9.2 통계적 추론에 미치는 효과
++ 교육기회균등 데이터(EEO 데이터)
++ 목적 : 학교의 시설 환경에 관련된 요인이 학생의 학업성취도(ACHV)에 미치는 영향을 평가하는 것
++ 모형 : $ACHV = \beta_0 + \beta_1 * FAM + \beta_2 * PEER + \beta_3 * SCHOOL + \epsilon$
+  + 예측변수 SCHOOL에 관해 '조정'된 학업성취도의 회귀관계로 나타내면 $ACHV - \beta_1 * FAM - \beta_2 * PEER = \beta_0 + \beta_3 * SCHOOL + \epsilon$
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+achv = read.table("achv.txt", header = T)
+head(achv)
+lm_achv = lm(ACHV ~ FAM + PEER + SCHOOL, data = achv)
+summary(lm_achv)
+anova(lm_achv)
+plot(lm_achv$fitted.values, rstandard(lm_achv), xlab = "예측값", ylab = "잔차", pch = 16)
+cor(achv[-1])
+pairs(achv[-1])
+```
+
++ 총 변이에 대한 예측변수의 설명비율이 약 20%($R^2 = 0.206$) 인데도 불구하고 이 결과는 예측변수 FAM, PEER, SCHOOL이 반응변수의 변이를 설명함에 유용한 역할을 하고 있음 + 각 예측변수에 대한 개별적 t-값은 모두 작음 -> 3개의 예측변수가 모두 함께 사용되었을 때 전체적으로는 유의하나 개별적으로 보았을 때는 모든 t-값은 유의하지 않음 -> 심각한 다중공선성의 상황
++ 다중공선성의 발생 원인
+  1. 표본 데이터의 결함 -> 관측값을 표본에 추가함으로써 해결(단, 표본은 예측변수들 간의 상관관계가 너무 크지 않도록 선정해야함)
+  2. 모집단 고유의 특성으로 인하여 예측변수들 간에 원천적으로 큰 상관관계가 있는 경우
+  
+### 9.3 예측에 미치는 효과
++ 프랑스 경제 데이터(IMPORT 데이터)
++ 모형 : $IMPORT = \beta_0 + \beta_1 * DOPROD + \beta_2 * STOCK + \beta_3 * CONSUM + \epsilon$
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+france = read.table("france.txt", header = T)
+head(france)
+lm_france = lm(IMPORT ~ DOPROD + STOCK + CONSUM, data = france)
+summary(lm_france)
+anova(lm_france)
+plot(rstandard(lm_france), xlab = "번호", ylab = "잔차", pch = 16, type = "b")
+```
+
++ $R^2 = 0.973$은 매우 크나 이에 비해 t값이 매우 작은 결과 -> 심각한 다중공선성의 상황
++ 매우 분명한 패턴(이차곡선의 패턴)의 잔차플롯 -> 1960년부터의 유럽공동시장 운영에 따른 수출입관계의 중대한 변화가 생김을 고려해야함 -> 1949년 ~ 1959년까지의 상황만을 고려하기로 함
+
+```{r}
+lm_france2 = lm(IMPORT[1:11] ~ DOPROD[1:11] + STOCK[1:11] + CONSUM[1:11], data = france)
+summary(lm_france2)
+anova(lm_france2)
+plot(rstandard(lm_france2), xlab = "번호", ylab = "잔차", pch = 16, type = "b")
+```
+
++ $R^2 = 0.99$는 매우 높으나 DOPROD에 대한 회귀계수가 음수이며 통계적으로 유의하지 않은 결과 -> 경제학적으로, STOCK과 COMSUM을 고정시켰을 때 DOPROD의 증가는 IMPORT의 증가를 초래함 -> 분석 결과가 경제이론과 상호모순된 결과 -> 다중공선성의 경우
+
+```{r}
+cor(france$CONSUM[1:11], france$DOPROD[1:11])
+lm_consum = lm(CONSUM[1:11] ~ DOPROD[1:11], data = france)
+summary(lm_consum)
+```
+
++ 두 예측변수 CONSUM과 DOPROD간의 상관계수는 0.997이며, CONSUM은 DOPROD의 약 2/3(0.686)이 됨
++ 이와 같이 아주 심각한 다중공선성이 존재함에도 불구하고 회귀방정식을 예측에 사용하게 될 경우에는 별 문제없이 좋은 결과를 얻을 수 있음
+
++ 데이터 예측 예시
+  1. STOCK과 CONSUM을 현재 수준에서 묶어놓은 상태에서 DOPROD을 10단위 증가시켰을 때 내년도 IMPORT 양 : $IMPORT_{1960} = IMPORT_{1959} - 0.061 * 10$
+  2. DOPROD와 CONSUM의 관계가 그대로 유지되는 경우 : $IMPORT_{1960} = IMPORT_{1959} - 0.51 + 0.287 * (2/3) * 10 = IMPORT_{1959} + 1.5$
+    + 비직교적인 데이터에 대한 추론이나 예측을 위해 회귀분석을 고려할 경우 그 경우에는 매우 심각한 제한성이 있음
+    + 다중공선성이 의심되는 상황에서 회귀분석의 결과를 해석할 때는 상당히 주의가 요구됨
+    
+### 9.4 다중공선성의 탐색
+#### 9.4.1 다중공선성의 간단한 징후 -> 다중공선성의 전체 그림을 파악하는 데는 충분하지 않음
++ 경우 1) 추정된 회귀계수의 불안정성의 형태
+  + 한 변수를 추가 또는 삭제할 때 추정된 회귀계수가 크게 변할 경우
+  + 한 데이터 점을 변화시키거나 제거할 때 추정된 회귀계수가 크게 변화할 경우
++ 경우 2) 잔차플롯을 볼 때 모형이 만족스럽게 구체화되었음이 확인
+  + 추정된 회귀계수의 대수적인 부호가 사전에 기대한 (이론적인) 것과 일치하지 않을 경우
+  + 이론적으로 중요한 변수에 대한 회귀계수가 큰 표준오차를 가지는 경우
++ 경우 3) 예측변수들 사이의 상관계수의 크기로 통해서 검색될 수 있음
+
++ 광고(ADVER) 데이터
+  + 모형 : $S_t = \beta_0 + \beta_1A_t + \beta_2P_t + \beta_3E_t + \beta_4A_{t-1} + \beta_5P_{t-1} + \epsilon$
+  
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+ad = read.table("ADVER.txt", header = T)
+head(ad)
+lm_ad = lm(S_t ~ A_t + P_t + E_t + A_.t.1. + P_.t.1., data = ad)
+summary(lm_ad)
+anova(lm_ad)
+cor(ad[-1])
+plot(lm_ad$fitted.value, rstandard(lm_ad), xlab = "예측값", ylab = "잔차", pch = 16)
+plot(rstandard(lm_ad), xlab = "인덱스스", ylab = "잔차", pch = 16, type = "b")
+```
+  
+  + 예측값, 인덱스 잔차 플롯에서는 모형구축에 문제가 없음 + 예측변수 간의 단순상관계수 또한 모두 매우 작음
+  
+```{r}
+ad_A = ad[-2]
+lm_ad_A = lm(S_t ~ P_t + E_t + A_.t.1. + P_.t.1., data = ad_A)
+summary(lm_ad_A)
+```
+
+  + 당해년도 광고비(A)를 제거 -> $P_t$의 추정된 회귀계수가 8.37에서 3.70으로 하락, $A_{t-1}$과 $P_{t-a}$의 추정된 회귀계수는 부호가 바뀌어 통계적으로 더이상 유의하지 않음 + 그러나 $E_t$의 계수는 매우 안정적, $R^2$도 큰 변화 없음 -> 변수 A와 P의 당해연도와 전년도 값들을 포함하는 어떤 유형관계가 있음을 암시
+  
+```{r}
+lm_ad_At = lm(A_t ~ P_t + A_.t.1. + P_.t.1., data = ad)
+summary(lm_ad_At)
+```
+
++ 회귀방정식 : $\hat{A_t} = 4.63 - 0.87P_t - 0.86A_{t-1} - 0.95P_{t-1}$
++ $A_t + P_t + A_{t-1} + P_{t-1} \doteq 5$ -> 예산상의 제한성을 반영하는 선형관계로 인해 다중공선성이 발생함
+
+#### 9.4.2 분산확대인자
++ 분산확대인자 VIF : 각 예측변수를 나머지 모든 예측변수들로부터 회귀하여 얻어지는 $R^2$을 검색하는 것; $VIF_j = \frac {1} {1-R_j^2}, j = 1, ..., p$
+  1. 만약 예측변수 $X_j$가 나머지 모든 예측변수들과 강한 선형관계를 갖는 경우 $R_j$은 1에 접근 -> $VIF_j$는 매우 커짐
+    + 통상 VIF > 10이면 그 데이터에 심각한 공선성의 문제가 있다는 신호
+  2. 예측변수들 간에 선형적 연관관계가 없는 경우 $R_j^2 = 0$ -> $VIF_j = 1$
+    + VIF의 1로부터의 차이 = 공선성의 정도
++ $\overline{VIF} = D^2/p = \frac {\sigma^2 \sum_{j = 1}^{p} VIF_j} {p\sigma^2}$ 또한 다중공선성의 측도로 사용가능
+  + $D^2$ : OLS추정량과 그 참값으로부터의 제곱거리 / 최소제곱추정량의 정도를 평가하는 또다른 측도 / 값이 작을수록 추정량은 더 정확
+
++ 앞 예시들의 VIF를 통한 다중공선성 진단
+```{r}
+library(car)
+vif(lm_achv)
+vif(lm_france)
+vif(lm_ad)
+```
+
+  1. EEO 데이터 : 세 변수(FAM, PEER, SCHOOL) 모두 강한 연관관계를 가지고 있어 그 중 어느 하나를 제거한다 해도 공선성은 사라지지 않음
+  2. IMPORT 데이터 : VIF에서 DOPROD와 CONSUM은 높은 관계를 가지나 STOCK은 연관성이 없어 회귀방정식에 STOCK와 (CONSUM, DOPROD) 중의 하나만 포함시킨다면 공선성의 문제는 자연히 제거됨
+  3. ADVER 데이터 : E에 대한 VIF가 1에 매우 가까우므로 이는 다른 예측변수와 상관성이 없으며 나머지 4개 변수 간에 밀접한 선형관계가 있음
+-> 여기서 주의할 점은, 특정변수를 제거하는 것이 항상 다중공선성을 감소시키는 가장 좋은 방법은 아니며 전혀 개선되지 않을 때도 있음
+
+#### 9.4.3 상태지수
++ 상관계수행렬 : p개 변수 $X_1, ..., X_p$의 짝별 상관계수들을 정방행렬로 나타낸 것
++ 만일 어떤 $\lambda$이 완전히 0에 가까운 값을 가지면 원 변수들 사이에 완전한 선형관계가 있다는 것 -> 극단적인 다중공선성을 의미
++ 고유값을 통한 다중공선성 진단
+  1) 고유값의 역수에 대한 합 : $\sum_{j=1}^{p} \frac {1} {\lambda_j}$ -> 합이 예측변수의 수보다 5배 이상 크면 다중공선성 존재
+  2) 상태지수 : $k_j = \sqrt \frac {\lambda_1} {\lambda_j}, j = 1, ..., p$ -> 상태수 $k_p = \sqrt \frac {상관행렬의 최대고유값} {상관행렬의 최소고유값} = \sqrt \frac {\lambda_1} {\lambda_p}$ -> $k_p > 15$이면 데이터의 공선성이 회귀분석에 해로운 결과를 초래한다고 판단함
+
+```{r}
+#(1)교육기회균등
+cor_achv_scale <- cor(scale(as.matrix(lm_achv$model)[,-1]))
+lambda_achv <- eigen(cor_achv_scale)
+#상태지수
+sqrt(max(lambda_achv$values)/lambda_achv$values)
+
+#(1-1)교육기회균등: `cond.index` 함수 사용, 꼭 중심화 척도화를 먼저 해야 함
+library(klaR)
+achv_scale_all <- as.data.frame(scale(as.matrix(lm_achv$model)))
+cond.index(ACHV ~ FAM + PEER + SCHOOL, data = achv_scale_all)
+
+#(2)IMPORT (결과 불일치)
+cor_france_scale <- cor(scale(as.matrix(lm_france$model)[,-1]))
+lambda_france <- eigen(cor_france_scale)
+#상태지수
+sqrt(max(lambda_france$values)/lambda_france$values)
+
+#(3)광고비
+cor_ad_scale <- cor(scale(as.matrix(lm_ad$model)[,-1]))
+lambda_ad <- eigen(cor_ad_scale)
+#상태지수
+sqrt(max(lambda_ad$values)/lambda_ad$values)
+```
+
++ 앞 예시들의 상태수를 통한 다중공선성 진단
+```{r}
+eigen(cor(achv[-1]))$values
+eigen(cor(france[3:5]))$values   #책이랑 값이 다름 -> 연도 49 ~ 59 적용 필요해보임
+eigen(cor(ad[-1]))$values
+```
++ 이끌어 내야할 결론 : 상태수를 살펴보면 세 데이터 모두에서 다중공선성이 있음을 나타내고 있음
+
+### 연습문제 9.3 가솔린소비량
++ 가솔린 자동차의 연비를 결정하는 요인들을 연구하기 위하여 30개 자동차 모형으로부터 데이터를 수집하였다. 반응변수 Y는 1갈론당 주행거리(마일)을 나타내는 가솔린 연료소모량이고, 이에 영향을 끼치는 11개 예측변수들은 자동차의 물리적인, 기계적인 성격과 관련된 것들이다. 표 9.16에 사용된 변수의 내역과 데이터가 주어져있다. 표 9.17의 원데이터는 1975년도 자동차 관련 잡지인 Motor Trend로부터 얻어진 것이다. 여기에서는 데이터에 공선성이 존재하는지를 파악하고자 한다.
+(a) 예측변수 $X_1, ..., X_11$의 상관계수 행렬을 계산하고, 대응하는 짝별 산점도를 그려라. 공선성의 증거를 찾아보아라.
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+gasoline = read.table("gasoline.txt", header = T)
+head(gasoline)
+cor(gasoline[-1])
+pairs(gasoline[-1])
+lm_gasoline = lm(Y ~ ., data = gasoline)
+summary(lm_gasoline)
+plot(lm_gasoline$fitted.values, rstandard(lm_gasoline), xlab = "예측값", ylab = "잔차", pch = 16)
+
+```
+
++ 잔차플롯을 보았을 때에는 모형에 큰 문제가 없어보인다.
++ 결정계수가 0.8353임에도 불구하고 각 예측변수에 대한 개별적 t값은 모두 작아 유의하다고 판단되는 예측변수가 없다.
+  -> 9.3절의 IMPORT 데이터와 동일한 경우로 심각한 다중공선성의 문제가 있다고 생각한다.
++ X1, X2, X3, X8, X9, X10 간에 공선성이 존재하는 것으로 예상한다.
+
+(b) 상관계수로부터 고유값, 고유벡터, 상태수를 계산하여라. 이 데이터에는 다중공선성이 존재하는가?
+```{r}
+eigen(cor(gasoline[-1]))$values
+eigen(cor(gasoline[-1]))$vector
+kp = sqrt(7.702574847/0.003497202)
+kp
+```
++ 예측변수 X7, X8, X9, X10, X11이 0에 매우 가까운 고유값($\lambda)이므로 원 변수들 사이에 완전한 선형 관계가 있다는 것을 의미하여 극단적인 다중공선성이 있을 것으로 예상한다.
++ 상태수를 구하면 46.93으로 15를 훌쩍 초과한 수이므로 다중공선성이 존재함을 더 확실히 진단해준다.
+
+(c) 작은 고유값을 갖는 고유벡터를 살펴봄으로써 다중공선성을 가지는 변수들을 찾아보아라.
+```{r}
+eigen(cor(gasoline[-1]))$values[11]
+eigen(cor(gasoline[-1]))$vector[,11]
+```
++ 다중공선성 집합에 속한 변수들은 예측변수들의 선형결합을 상수로 만들 수 있는데, 상수값은 가장 작은 고유값 $\lambda_{11}$ = 0.003이고 선형결합 함수의 계수값은 대응되는 고유벡터인 $V_{11}$의 원소들이다.
++ 즉, 변수들은 $$0.618 \tilde{X_1} + 0.259 \tilde{X_2} - 0.682 \tilde{X_3} + 0.013 \tilde{X_4} - 0.045 \tilde{X_5} - 0.06 \tilde{X_6} + 0.049 \tilde{X_7} + 0.091 \tilde{X_8} + 0.053 \tilde{X_9} - 0.26 \tilde{X_{10}} - 0.01 \tilde{X_{11}} \doteq 0.003$$ 으로 연결되어 있다.
++ 위 식에서 회귀계수가 0.1보다 작은 변수들을 0으로 두면, $$0.618 \tilde{X_1} + 0.259 \tilde{X_2} - 0.682 \tilde{X_3} - 0.26 \tilde{X_{10}} \doteq 0$$
++ 또는, $$0.618 \tilde{X_1} + 0.259 \tilde{X_2} \doteq 0.682 \tilde{X_3} + 0.26 \tilde{X_{10}}$$
++ 따라서, $X_1, X_2, X_3, X_{10}$에 대한 상관계수의 절댓값이 0.9보다 큼을 확인하여 위의 관계를 확인할수도 있으므로 이 4가지 변수 사이에 연관성이 있다고 생각한다.
+
+(d) 반응변수 Y와 11개의 예측변수에 대한 회귀를 적합시키고, 각 예측변수에 대한 VIF를 계산하여라. 어떠한 변수들이 공선성에 영향을 받고 있는가?
+```{r}
+library(car)
+vif(lm_gasoline)
+```
++ 회귀적합은 (a)번에서 수행하였다.
++ 각 예측변수에 대한 VIF 결과, $X_1, X_2, X_3, X_{10}$에서 매우 큰 값이 나왔으며, $X_8$에서는 15보다는 다소 큰 VIF값이 계산되었다.
++ 따라서, $X_1, X_2, X_3, X_{10}$ 변수들은 서로 상관성이 매우 크며 이들에 의해 심각한 다중공선성이 의심되며, $X_8$도 다중공선성에 어느정도 영향을 미친다고 할 수 있다.
