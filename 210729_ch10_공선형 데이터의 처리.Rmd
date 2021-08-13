@@ -1,0 +1,152 @@
+---
+title: "Chapter10. 공선형 데이터의 처리"
+author: "Jeong-Eun Lee"
+date: '2021 7 29 '
+output: html_document
+---
+### 10.1 소개
++ 다중공선성 데이터를 다루는 방법
+  1) 회귀모수에 제약조건을 두는 것
+  2) 통상적 최소제곱법의 대안으로 주성분회귀와 능형회귀 추정방법을 이용하는 것
+
+### 10.2 주성분
++ 주성분 : 새로운 직교변수
+  + $C_1, C_2, ..., C_p$로 씀, 각 변수 $C_j$는 표준화변수 $\tilde{X_1}, ..., \tilde{X_p}$의 선형결합
+  + $C_j = v_{1j}\tilde{X_1} + v_{2j}\tilde{X_2} + ... + v_{pj}\tilde{X_p}, j = 1, 2, ..., p$
+    + 선형결합의 계수들은 $C_1, ..., C_p$가 서로 직교하도록 선택됨
+    + p개의 변수들의 상관계수행렬에서 j번째 큰 고유값 $\lambda_j$에 대응되는 j번째 고유벡터의 원소들
+    + 상관계수행렬의 고유벡터 : $V = (V_1 V_2 ... V_p) = \begin{bmatrix} v_{11} & v_{12} & ... & v_{1p} \\ v_{21} & v_{22} & ... & v_{2p} \\ ... \\ v_{p1} & v_{p2} & ... & v_{pp} \end{bmatrix}$
+    + j번째 주성분의 분산 : $Var(C_j) = \lambda_j, j = 1, 2, ..., p$
+    + 주성분의 분산-공분산행렬 : $\begin{bmatrix} \lambda_1 & 0 & ... & 0 \\ 0 & \lambda_2 & ... & 0 \\ 0 & 0 & ... & \lambda_p \end{bmatrix}$ - 주성분들은 직교하기 때문에 모든 비대각원소들은 0이 됨
++ 주성분은 $\lambda_1 \ge \lambda_2 \ge ... \ge \lambda_p$의 순서로 정렬됨. 즉 첫번재 주성분이 가장 큰 분산을 갖고 마지막 주성분이 가장 작은 분산을 가짐
++ 만약 어떤 $\lambda$들이 완전히 0에 가까운 값을 가지면 원래 변수들 사이에 완전한 선형관계가 있다는 것 -> 극단적인 다중공선성
+
++ (IMPORT데이터) 
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+france = read.table("france.txt", header = T)
+head(france)
+DOPROD2 = france$DOPROD[1:11]
+STOCK2 = france$STOCK[1:11]
+CONSUM2 = france$CONSUM[1:11]
+france2 = cbind(DOPROD2, STOCK2, CONSUM2)
+france2
+cor(france2) 
+eigen(cor(france2))$values 
+eigen(cor(france2))$vector   
+```
++ 주성분
+  + $C_1 = 0.706 \tilde{X_1} + 0.044 \tilde{X_2} + 0.707 \tilde{X_3}$
+  + $C_2 = 0.036 \tilde{X_1} - 0.999 \tilde{X_2} + 0.026 \tilde{X_3}$
+  + $C_3 = 0.707 \tilde{X_1} + 0.007 \tilde{X_2} - 0.707 \tilde{X_3}$
+  
++ 새로운 변수의 분산-공분산 행렬 : $\begin{bmatrix} 1.999 & 0 & 0 \\ 0 & 0.998 & 0 \\ 0 & 0 & 0.003 \end{bmatrix}$
++ 주성분은 원래 변수들이 혼합된 형태를 가지기 때문제 이에 대한 해석이 쉽지는 않으나 다중공선성에 관한 정보를 포함한 통합된 방법을 제공하고 이후에 설명할 대안적인 추정방법의 기본이 됨.
++ 고유값 $\lambda_j$는 j번째 주성분의 분산이 되었으므로 만약 이 $\lambda_j$가 근사적으로 0이 된다면 이는 곧 대응되는 주성분 $C_j$가 거의 변이를 가지지 않고 근사적으로 상수와 같음을 나타냄 -> 이에 따라 그 주성분을 정의하는 식을 살펴봄으로써 다중공선성을 일으키는 예측변수들 간의 관계에 관한 아이디어를 얻을 수 있음
++ 이 절에서 다룬 다중공선성의 탐색은 주로 예측변수들 사이의 상관계수나 상관행렬의 고유값이라는 지표의 크기를 통해 이루어졌는데 실제 지표가 크다, 작다와 같은 표현을 명확히 정의하는 임계값을 결정하는 방법이 없음
++ 이러한 경우에 하나의 합리적인 기준은 '다중공선성으로 인해 일어나는 모호성이 당면한 문제에 대해 얼마나 실질적인 중요성을 가지느냐'
+  + 따라서 주의해야 할 것은 크기는 상대적인 개념이고 다양한 다중공선성의 측도에 좋지 않은 영향을 주는 관측값(-> 공선성 영향 관측치)이 분석 데이터에 하나 또는 몇 개씩 포함되어 있을 가능성이 있음을 유의해야 함
+  
+### 10.3 주성분에 관련된 계산
++ 예측변수의 상관행렬로부터 고유값과 고유벡터, 주성분을 계산하려면 주성분분석이 원데이터에 대해 수행되어야 함
++ (ADVER 데이터)
+  1) 원래 예측변수 항으로 표현한 회귀모형 : $S_t = \beta_0 + \beta_1A_t + \beta_2P_t + \beta_3E_t + \beta_4A_{t-1} + \beta_5P_{t-1} + \epsilon_t$
+  2) 표준화 변수에 의해 표현 : $\tilde{Y} = \theta_1\tilde{X_1} + \theta_2\tilde{X_2} + \theta_3\tilde{X_3} + \theta_4\tilde{X_4} + \theta_5\tilde{X_5} + \epsilon'$
+    + $\theta_j$ : 베타계수 - 표준편차 단위로 표현한 예측변수의 주변효과
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+ad = read.table("ADVER.txt", header = T)
+head(ad)
+cor(ad[-1])
+eigen(cor(ad[-1]))$values 
+eigen(cor(ad[-1]))$vector
+```
+  3) 주성분 
+  + $C_1 = 0.532 \tilde{X_1} - 0.232 \tilde{X_2} - 0.389 \tilde{X_3} + 0.395 \tilde{X_4} - 0.596 \tilde{X_5}$
+  + $C_2 = 0.024 \tilde{X_1} - 0.825 \tilde{X_2} + 0.022 \tilde{X_3} + 0.26 \tilde{X_4} + 0.501 \tilde{X_5}$
+  + $C_3 = 0.668 \tilde{X_1} - 0.158 \tilde{X_2} + 0.217 \tilde{X_3} - 0.692 \tilde{X_4} + 0.057 \tilde{X_5}$
+  + $C_4 = -0.074 \tilde{X_1} + 0.037 \tilde{X_2} - 0.895 \tilde{X_3} - 0.338 \tilde{X_4} + 0.279 \tilde{X_5}$
+  + $C_5 = -0.514 \tilde{X_1} - 0.489 \tilde{X_2} + 0.01 \tilde{X_3} - 0.428 \tilde{X_4} - 0.559 \tilde{X_5}$
+  + 변수 $C_1, C_2,..., C_5$는 예측변수의 표준화된 값들과 연관되어 있음
+  4) 주성분들의 항으로 모형 표현 : $\tilde{Y} = \alpha_1C_1 + \alpha_2C_2 + \alpha_3C_3 + \alpha_4C_4 + \alpha_5C_5 + \epsilon'$
+  5) 추정치 $\hat{\theta_1}, ..., \hat{\theta_p}$ 계산방법
+      (1) 표준화된 변수들에 대한 회귀분석의 결과를 $\tilde{Y} = \theta_1\tilde{X_1} + \theta_2\tilde{X_2} + \theta_3\tilde{X_3} + \theta_4\tilde{X_4} + \theta_5\tilde{X_5} + \epsilon'$로 재표현하여 얻을 수 있음
+```{r}
+library(lm.beta)
+lm_ad = lm(S_t ~ A_t + P_t + E_t + A_.t.1. + P_.t.1., data = ad)
+summary(lm.beta(lm_ad))
+```
+      
+      (2) 표준화된 반응변수에 5개의 주성분을 예측변수로 하는 최소제곱 회귀분석을 수행
+  + 한 가지 주목할 점은 가설 $\beta_j = 0$에 대한 t-검정 통계량과 가설 $\theta_j = 0$에 대한 t-검정 통계량이 같다는 것(t-검정 통계량을 계산할 때 척도화 요인이 사라지게 되어서)
+  
+### 10.7 주성분회귀
++ (IMPORT 데이터(1949 ~ 1959)) 
+  + $\tilde{Y} = \theta_1\tilde{X_1} + \theta_2\tilde{X_2} + \theta_3\tilde{X_3} + \epsilon'$ 적합
+```{r}
+setwd("C:/Users/X-Note/Desktop")
+france = read.table("france.txt", header = T)
+head(france)
+IMPORT2 = france$IMPORT[1:11]
+DOPROD2 = france$DOPROD[1:11]
+STOCK2 = france$STOCK[1:11]
+CONSUM2 = france$CONSUM[1:11]
+france2 = data.frame(IMPORT2, DOPROD2, STOCK2, CONSUM2)
+france2
+
+lm_france2 = lm(IMPORT2 ~ DOPROD2 + STOCK2 + CONSUM2, data = france2)
+summary(lm.beta(lm_france2))
+```
+
+  + $\tilde{Y} = \alpha_1C_1 + \alpha_2C_2 + \alpha_3C_3 + \epsilon'$ 적합
+```{r}
+#수정필요
+```
+  
+  + 회귀계수 $\alpha$와 $\theta$ 사이에는 다음과 같은 관계가 성립한다.
+    + $\alpha_1 = 0.706\theta_1 + 0.044\theta_2 + 0.707\theta_3$
+    + $\alpha_2 = -0.036\theta_1 + 0.999\theta_2 - 0.026\theta_3$
+    + $\alpha_3 = -0.707\theta_1 - 0.007\theta_2 + 0.707\theta_3$
+    
+    + $\theta_1 = 0.706\alpha_1 - 0.036\alpha_2 - 0.707\alpha_3$
+    + $\theta_2 = 0.044\alpha_1 + 0.999\alpha_2 - 0.007\alpha_3$
+    + $\theta_3 = 0.707\alpha_1 - 0.026\alpha_2 + 0.707\alpha_3$
++ 다중공선성 문제를 분석하기 위한 수단으로만 주성분회귀를 이용하고, 최종적인 추정결과에 대한 해석은 $\theta$들의 항목으로 재서술한 후에 시도하는 것이 바람직하다
+
+### 10.11 능형회귀
++ 능형궤적도를 이용하는 능형회귀분석 : 다중공선성이 의심될 때 공선성의 탐색과 회귀계수의 추정을 동시에 처리해주는 방법
+  + 장점 : OLS추정량보다 더 작은 평균제곱오차를 가지는 경향이 있음
+  + 단점 : 이 방법으로 계산한 회귀계수의 능형추정량이 편향되어 있음
++ 능형회귀계수를 추정하기 위한 방정식
+$$(1+k)\theta_1 + r_{12}\theta_2 + ... + r_{1p}\theta_p = r_{1y}$$
+$$r_{21}\theta_1 + r_{p2}\theta_2 + ... + r_{2p}\theta_p = r_{2y}$$
+$$r_{p1}\theta_1 + r_{p2}\theta_2 + ... + (1 + k)\theta_p = r_{py}$$
++ OLS와의 차이점 : 편향모수(or 능형모수) k
+  + k = 0, $\hat{\theta}$ = OLs추정치
+  + k > 0, 추정치의 편의도 증가
+  + 전체분산 : k의 감소함수 - $Total\ Variance(k) = \sum_{j=1}^{p} Var(\hat{\theta_j(k)}) = \sigma^2\sum_{j=1}^{p} \frac{\lambda_j} {(\lambda_j + k)^2}$
+  + k를 무한히 계속 증가시키면 회귀계수 추정치는 모두 0으로 접근하는 경향이 있음
+    -> 능형회귀의 아이디어는 편의를 크게 증가시키지 않으면서 전체 분산을 감소시키는 적절한 k를 찾는 것
++ 실제 문제에서 능형방법 절차
+  1) 능형추정값 $\hat{\theta_1}, ..., \hat{\theta_p}$을 계산하고
+  2) 그 결과들을 k에 대해 플롯한다음
+  3) 추정값의 안정성의 관점에서 적절한 k값을 취함
+    
++ 능형궤적도 : 주어진 k에 대한 능형추정치 $\hat{\theta_1}, ..., \hat{\theta_p}$의 그래프
+
+### 10.12 능형방법을 이용한 추정
++ 능형분석으로부터 다중공선성의 탐색에 관련된 접근방법은 추정 데이터의 작은 변화에 대한 추정 회귀계수의 안정성을 고려하는 것 -> 능형궤적도를 통해 파악
++ 능형궤적도 : 편향모수 k에 따른 p개의 능형회귀계수 $\hat{\theta_1}, ..., \hat{\theta_p}$의 값을 함께 도시한 그래프
+  + 일반적으로 k는 범위 [0, 1]의 하한부분에 있는 값들을 집중적으로 선택
+  + 만약 매우 작은 값 k에 대해 추정된 회귀계수가 큰 파동을 보인다면 이는 추정된 회귀계수의 불안정성을 나타내고 다중공선성에 그 원인이 있음을 의미
+  + 다중공선성이 심각하다면 k값이 0에서 천천히 증가함에 따라 능형추정치가 급격히 변함
+    -> 안정적인 상태를 보이는 지점의 가장 작은 k값을 선택하는 것이 바람직함
++ k를 선택하는 여러가지 방법
+  1) 고정점 : $k = \frac {p\hat{\sigma^2(0)}} {\sum_{j=1}^{p} [\hat{\theta_j(0)}]^2}$
+  2) 반복적 방법 : k값의 변화가 무시할만큼 작을 때까지 고정점 계산을 반복
+  3) 능형궤적도 : k값은 모든 계수 $\hat{\theta_j(k)}$를 안정적으로 하는 가장 작은 값으로 선택 + 선택된 k의 지점에서 잔차제곱합은 최솟값에 근접해야 함 + $VIF_j(k)$ < 10 -> 시각적 표현 가능
++ 능형회귀 vs 주성분회귀 결과 : 두 방법에 따른 계산방법이 매우 다름에도 불구하고 능형회귀에 의한 최종 예측식은 첫 두 개의 주성분을 사용하여 얻은 결과와 특별히 차이가 없음
+
+#### 추가
++ 능형회귀를 하면 편향이 생기는 상황이 발생함에도 불구하고 이를 사용하는 이유는 편향을 내리면 분산이 증가, 편향을 늘리면 분산이 감소 -> 전체평균제곱오차(TMSE)를 비교하여 오차가 더 작게 되도록 하기 위해 능형회귀를 사용함
++ 예측 : k를 잘라서 train set, test set으로 나누어서 k 추정(cross validation)
